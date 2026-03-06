@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MASHRIQ — منصة الاستخبارات العالمية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --black:#04060a; --void:#07090e; --deep:#0b0f18; --panel:#101622;
+  --surface:#151e2c; --surf2:#1a2438; --border:#1e2d42; --border2:#253550;
+  --gold:#c89428; --gold2:#e8b84b; --gold3:#f5d478; --amber:#ff9800;
+  --red:#d42828; --red2:#ff3c3c; --cyan:#22b8d0; --green:#22cc70;
+  --blue:#3a7eff; --purple:#9966ff; --orange:#ff6a00;
+  --text:#7a9ab8; --text2:#a8c4d8; --text3:#ddeeff; --dim:#2e4460;
+  --ticker-h:34px; --header-h:58px; --search-h:50px; --status-h:30px;
+  --left-w:300px; --right-w:280px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--black);color:var(--text2);font-size:12px;}
+body.ar{font-family:'Noto Naskh Arabic',serif;direction:rtl;}
+body.en{font-family:'IBM Plex Mono',monospace;direction:ltr;}
+/* scanlines */
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.06) 3px,rgba(0,0,0,.06) 4px);pointer-events:none;z-index:9800;}
+/* corner frames */
+.crn{position:fixed;width:44px;height:44px;z-index:9700;pointer-events:none;}
+.crn-tl{top:0;left:0;border-top:1px solid var(--gold);border-left:1px solid var(--gold);}
+.crn-tr{top:0;right:0;border-top:1px solid var(--gold);border-right:1px solid var(--gold);}
+.crn-bl{bottom:0;left:0;border-bottom:1px solid var(--gold);border-left:1px solid var(--gold);}
+.crn-br{bottom:0;right:0;border-bottom:1px solid var(--gold);border-right:1px solid var(--gold);}
+
+/* ── TICKER ── */
+#ticker{height:var(--ticker-h);background:linear-gradient(90deg,#180800,#0c0800,#180800);border-bottom:1px solid var(--gold);display:flex;align-items:center;overflow:hidden;position:relative;z-index:200;}
+.ticker-lbl{background:var(--gold);color:#000;font-size:9px;font-weight:700;letter-spacing:3px;padding:0 14px;height:100%;display:flex;align-items:center;white-space:nowrap;flex-shrink:0;}
+.ticker-scroll{overflow:hidden;flex:1;}
+.ticker-inner{display:flex;white-space:nowrap;animation:scrl 90s linear infinite;}
+.ticker-item{color:var(--gold2);font-size:11px;padding:0 44px;}
+.ticker-item::before{content:"◆ ";color:var(--gold);opacity:.55;}
+@keyframes scrl{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── HEADER ── */
+#header{height:var(--header-h);background:var(--void);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;justify-content:space-between;position:relative;z-index:199;}
+#header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),var(--gold2),var(--gold),transparent);}
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-ar{font-family:'Noto Naskh Arabic',serif;font-size:24px;color:var(--gold2);line-height:1;}
+.logo-div{width:1px;height:30px;background:var(--border2);}
+.logo-en{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--text3);letter-spacing:7px;}
+.logo-en em{color:var(--gold2);font-style:normal;}
+.logo-sub{font-size:8px;letter-spacing:3px;color:var(--dim);margin-top:2px;}
+.hdr-right{display:flex;align-items:center;gap:14px;}
+.live-pill{display:flex;align-items:center;gap:6px;border:1px solid var(--red);border-radius:2px;padding:4px 10px;color:var(--red2);font-size:9px;letter-spacing:3px;}
+.live-dot{width:6px;height:6px;background:var(--red2);border-radius:50%;animation:blink 1s step-end infinite;box-shadow:0 0 8px var(--red2);}
+@keyframes blink{50%{opacity:0;}}
+.lang-btn{background:var(--surface);border:1px solid var(--border2);color:var(--gold2);font-size:10px;letter-spacing:2px;padding:5px 12px;cursor:pointer;border-radius:2px;transition:all .15s;}
+.lang-btn:hover{background:var(--gold);color:#000;}
+.clock{font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--gold2);font-weight:600;letter-spacing:2px;}
+.clock-d{font-size:8px;color:var(--dim);letter-spacing:2px;margin-top:1px;}
+
+/* ── SEARCH ── */
+#searchbar{height:var(--search-h);background:var(--void);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:8px;overflow-x:auto;}
+#searchbar::-webkit-scrollbar{display:none;}
+.s-wrap{flex:1;min-width:140px;position:relative;}
+.s-inp{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:7px 10px 7px 34px;color:var(--text3);font-size:11px;outline:none;transition:border-color .15s;}
+body.ar .s-inp{padding:7px 34px 7px 10px;text-align:right;}
+.s-inp:focus{border-color:var(--gold);}
+.s-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:14px;}
+body.ar .s-ico{left:auto;right:10px;}
+.chip{background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:9px;letter-spacing:1.5px;padding:5px 12px;border-radius:2px;cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none;flex-shrink:0;}
+.chip:hover{border-color:var(--gold);color:var(--gold2);}
+.chip.on{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700;}
+.chip.on-r{background:var(--red);color:#fff;border-color:var(--red);}
+
+/* ── LAYOUT ── */
+#layout{display:grid;grid-template-columns:var(--left-w) 1fr var(--right-w);height:calc(100vh - var(--ticker-h) - var(--header-h) - var(--search-h) - var(--status-h));overflow:hidden;}
+
+/* ── LEFT PANEL ── */
+#left{border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--void);overflow:hidden;}
+body.ar #left{border-right:none;border-left:1px solid var(--border);}
+.pnl-head{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;}
+.pnl-lbl{font-size:8px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;}
+.badge-cnt{background:var(--gold);color:#000;font-size:8px;font-weight:700;padding:2px 7px;border-radius:1px;}
+.badge-r{background:var(--red);color:#fff;}
+
+/* SOURCE FILTER PANEL */
+#srcPanel{flex-shrink:0;border-bottom:1px solid var(--border);max-height:200px;overflow-y:auto;}
+#srcPanel::-webkit-scrollbar{width:3px;}
+#srcPanel::-webkit-scrollbar-thumb{background:var(--border2);}
+.src-group{padding:6px 10px 2px;}
+.src-group-title{font-size:8px;letter-spacing:2px;color:var(--gold);margin-bottom:4px;text-transform:uppercase;}
+.src-row{display:flex;align-items:center;gap:7px;padding:3px 4px;border-radius:2px;cursor:pointer;transition:background .1s;}
+.src-row:hover{background:var(--surface);}
+.src-cb{width:11px;height:11px;border:1px solid var(--border2);border-radius:1px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;transition:all .1s;}
+.src-cb.on{background:var(--gold);border-color:var(--gold);color:#000;}
+.src-name{font-size:10px;color:var(--text2);}
+
+/* FEED */
+#feedList{flex:1;overflow-y:auto;padding:5px;}
+#feedList::-webkit-scrollbar{width:3px;}
+#feedList::-webkit-scrollbar-thumb{background:var(--border2);}
+.card{border:1px solid var(--border);border-radius:2px;padding:9px 11px;margin-bottom:5px;cursor:pointer;transition:all .15s;position:relative;background:var(--deep);overflow:hidden;}
+.card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;}
+body.ar .card::before{left:auto;right:0;}
+.card.breaking::before{background:var(--red2);box-shadow:0 0 8px var(--red)44;}
+.card.conflict::before{background:var(--amber);}
+.card.politics::before{background:var(--gold2);}
+.card.economy::before{background:var(--cyan);}
+.card.diplomacy::before{background:var(--purple);}
+.card.military::before{background:var(--red);}
+.card.social::before{background:var(--green);}
+.card:hover{border-color:var(--gold);background:var(--surface);transform:translateX(2px);}
+body.ar .card:hover{transform:translateX(-2px);}
+.c-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.c-ico{font-size:12px;flex-shrink:0;}
+.c-src{font-size:8px;letter-spacing:1.5px;color:var(--gold);flex:1;}
+.c-age{font-size:8px;color:var(--dim);white-space:nowrap;}
+.c-body{font-size:13px;color:var(--text3);line-height:1.5;margin-bottom:6px;}
+body.ar .c-body{font-family:'Noto Naskh Arabic',serif;font-size:14px;}
+body.en .c-body{font-family:'Cormorant Garamond',serif;}
+.c-tags{display:flex;flex-wrap:wrap;gap:4px;}
+.tag{font-size:7px;letter-spacing:1px;padding:2px 6px;border-radius:1px;font-family:'IBM Plex Mono',monospace;}
+.tag-r{background:rgba(212,40,40,.2);border:1px solid rgba(212,40,40,.4);color:var(--red2);}
+.tag-g{background:rgba(200,148,40,.12);border:1px solid rgba(200,148,40,.3);color:var(--gold2);}
+.tag-d{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--dim);}
+
+/* ── MAP ── */
+#mapwrap{position:relative;display:flex;flex-direction:column;}
+#map{flex:1;}
+.leaflet-container{background:#050810!important;}
+.leaflet-tile{filter:brightness(.6) saturate(.35) hue-rotate(195deg);}
+.leaflet-control-zoom a{background:var(--panel)!important;color:var(--gold2)!important;border-color:var(--border)!important;}
+.leaflet-control-attribution{display:none!important;}
+.leaflet-popup-content-wrapper{background:var(--panel)!important;border:1px solid var(--gold)!important;border-radius:2px!important;box-shadow:0 0 40px rgba(200,148,40,.18)!important;color:var(--text2)!important;}
+.leaflet-popup-tip{background:var(--gold)!important;}
+.leaflet-popup-content{margin:12px 14px!important;min-width:220px;max-width:300px;}
+.pu-src{font-size:8px;letter-spacing:2px;color:var(--gold2);margin-bottom:5px;font-family:'IBM Plex Mono',monospace;}
+.pu-body{font-size:13px;color:var(--text3);line-height:1.45;margin-bottom:5px;}
+body.ar .pu-body{font-family:'Noto Naskh Arabic',serif;font-size:14px;}
+body.en .pu-body{font-family:'Cormorant Garamond',serif;}
+.pu-meta{font-size:8px;color:var(--dim);font-family:'IBM Plex Mono',monospace;}
+
+/* MAP LAYER CONTROLS */
+#layerCtrl{position:absolute;top:12px;left:12px;z-index:500;background:rgba(4,6,10,.92);border:1px solid var(--border);backdrop-filter:blur(10px);min-width:190px;}
+body.ar #layerCtrl{left:auto;right:12px;}
+.lc-title{padding:8px 12px;font-size:8px;letter-spacing:3px;color:var(--gold);border-bottom:1px solid var(--border);text-transform:uppercase;}
+.lc-row{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;transition:background .1s;border-bottom:1px solid rgba(30,45,66,.5);}
+.lc-row:hover{background:var(--surface);}
+.lc-toggle{width:28px;height:14px;border-radius:7px;background:var(--border);position:relative;transition:background .2s;flex-shrink:0;}
+.lc-toggle.on{background:var(--gold);}
+.lc-toggle::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:left .2s;}
+.lc-toggle.on::after{left:16px;}
+.lc-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.lc-label{font-size:10px;color:var(--text2);flex:1;}
+.lc-count{font-size:8px;color:var(--dim);font-family:'IBM Plex Mono',monospace;}
+
+/* MAP INFO BOX */
+#mapInfo{position:absolute;top:12px;right:12px;z-index:500;background:rgba(4,6,10,.92);border:1px solid var(--border);padding:10px 14px;backdrop-filter:blur(10px);font-family:'IBM Plex Mono',monospace;pointer-events:none;}
+body.ar #mapInfo{right:auto;left:12px;}
+.mi-row{display:flex;align-items:center;gap:8px;margin:3px 0;}
+.mi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.mi-lbl{font-size:9px;color:var(--text);}
+
+/* ── RIGHT PANEL ── */
+#right{border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--void);overflow:hidden;}
+body.ar #right{border-left:none;border-right:1px solid var(--border);}
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab{flex:1;padding:9px 4px;font-size:9px;letter-spacing:1.5px;text-align:center;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.tab.on{color:var(--gold2);border-bottom-color:var(--gold2);}
+.tab:hover:not(.on){color:var(--text);}
+#socialFeed{flex:1;overflow-y:auto;padding:6px;}
+#socialFeed::-webkit-scrollbar{width:3px;}
+#socialFeed::-webkit-scrollbar-thumb{background:var(--border2);}
+.post{border:1px solid var(--border);border-radius:2px;padding:9px 10px;margin-bottom:6px;background:var(--deep);transition:background .15s;}
+.post:hover{background:var(--surface);}
+.post-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;}
+.ava{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+.p-who{flex:1;}
+.p-name{font-size:10px;color:var(--text3);font-weight:600;}
+.p-handle{font-size:8px;color:var(--dim);letter-spacing:1px;}
+.p-t{font-size:8px;color:var(--dim);}
+.p-txt{font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:7px;}
+body.ar .p-txt{font-family:'Noto Naskh Arabic',serif;font-size:13px;}
+body.en .p-txt{font-family:'Cormorant Garamond',serif;}
+.p-stats{display:flex;gap:12px;font-size:8px;color:var(--dim);font-family:'IBM Plex Mono',monospace;}
+
+/* ── STATUS BAR ── */
+#statusbar{height:var(--status-h);background:var(--black);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:20px;}
+.sb-i{display:flex;align-items:center;gap:6px;}
+.sb-l{font-size:7px;letter-spacing:2px;color:var(--dim);}
+.sb-v{font-size:10px;font-weight:600;font-family:'IBM Plex Mono',monospace;}
+.sb-v.gold{color:var(--gold2)}.sb-v.red{color:var(--red2)}.sb-v.grn{color:var(--green)}.sb-v.cyn{color:var(--cyan)}
+.sb-sp{flex:1;}
+.sb-br{font-size:7px;color:var(--dim);letter-spacing:1px;}
+
+/* Animated aircraft trail */
+@keyframes fly{0%{opacity:.9}50%{opacity:.5}100%{opacity:.9}}
+@keyframes ship-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes missile-move{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(2.5)}}
+
+/* ── LOADER ── */
+#loader{position:fixed;inset:0;background:var(--black);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .7s;}
+.ld-ar{font-family:'Noto Naskh Arabic',serif;font-size:52px;color:var(--gold2);opacity:.85;}
+.ld-en{font-family:'Cormorant Garamond',serif;font-size:48px;letter-spacing:16px;color:var(--text3);font-weight:600;}
+.ld-en em{color:var(--gold2);font-style:normal;}
+.ld-bg{width:260px;height:1px;background:var(--border);}
+.ld-bar{height:1px;background:var(--gold);animation:lbar 2.5s ease-out forwards;}
+@keyframes lbar{0%{width:0}100%{width:100%}}
+.ld-msg{font-size:8px;letter-spacing:3px;color:var(--dim);animation:blink 1.2s infinite;}
+</style>
+</head>
+<body class="ar">
+
+<!-- Corners -->
+<div class="crn crn-tl"></div><div class="crn crn-tr"></div>
+<div class="crn crn-bl"></div><div class="crn crn-br"></div>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="ld-ar">المشرق</div>
+  <div class="ld-en">MASH<em>R</em>IQ</div>
+  <div class="ld-bg"><div class="ld-bar"></div></div>
+  <div class="ld-msg" id="ldMsg">جارٍ تهيئة خلاصات الاستخبارات...</div>
+</div>
+
+<!-- TICKER -->
+<div id="ticker">
+  <div class="ticker-lbl" id="tickerLbl">⬥ عاجل</div>
+  <div class="ticker-scroll"><div class="ticker-inner" id="tickerInner"></div></div>
+</div>
+
+<!-- HEADER -->
+<div id="header">
+  <div class="logo">
+    <div><div class="logo-ar">المشرق</div><div class="logo-sub" id="logoSub">منصة الاستخبارات العالمية</div></div>
+    <div class="logo-div"></div>
+    <div class="logo-en">MASH<em>R</em>IQ</div>
+  </div>
+  <div class="hdr-right">
+    <button class="lang-btn" onclick="toggleLang()" id="langBtn">EN</button>
+    <div class="live-pill"><div class="live-dot"></div><span id="liveTxt">بث مباشر</span></div>
+    <div><div class="clock" id="clk">--:--:--</div><div class="clock-d" id="clkD">UTC</div></div>
+  </div>
+</div>
+
+<!-- SEARCH + FILTERS -->
+<div id="searchbar">
+  <div class="s-wrap">
+    <span class="s-ico">⌕</span>
+    <input class="s-inp" id="searchInput" type="text" oninput="doSearch()">
+  </div>
+  <div class="chip on"  onclick="setFilter('all',this)"       id="f-all">الكل</div>
+  <div class="chip"     onclick="setFilter('breaking',this)"  id="f-breaking">🔴 عاجل</div>
+  <div class="chip"     onclick="setFilter('military',this)"  id="f-military">⚔ عسكري</div>
+  <div class="chip"     onclick="setFilter('conflict',this)"  id="f-conflict">💥 صراع</div>
+  <div class="chip"     onclick="setFilter('politics',this)"  id="f-politics">🏛 سياسة</div>
+  <div class="chip"     onclick="setFilter('economy',this)"   id="f-economy">📊 اقتصاد</div>
+  <div class="chip"     onclick="setFilter('diplomacy',this)" id="f-diplomacy">🕊 دبلوماسية</div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div id="layout">
+
+  <!-- LEFT: SOURCES + FEED -->
+  <div id="left">
+    <div class="pnl-head">
+      <span class="pnl-lbl" id="lbl-sources">مصادر الأخبار</span>
+      <span class="badge-cnt" id="feedCnt">0</span>
+    </div>
+
+    <!-- SOURCE SELECTOR -->
+    <div id="srcPanel">
+      <!-- Arab sources -->
+      <div class="src-group">
+        <div class="src-group-title" id="sg-arab">القنوات العربية</div>
+        <div class="src-row" onclick="toggleSrc('aljazeera',this)"><div class="src-cb on" id="cb-aljazeera">✓</div><span class="src-name">📺 الجزيرة</span></div>
+        <div class="src-row" onclick="toggleSrc('alarabiya',this)"><div class="src-cb on" id="cb-alarabiya">✓</div><span class="src-name">📺 العربية</span></div>
+        <div class="src-row" onclick="toggleSrc('rased',this)"><div class="src-cb on" id="cb-rased">✓</div><span class="src-name">📡 رصد</span></div>
+        <div class="src-row" onclick="toggleSrc('almayadeen',this)"><div class="src-cb on" id="cb-almayadeen">✓</div><span class="src-name">📺 الميادين</span></div>
+        <div class="src-row" onclick="toggleSrc('sky_ar',this)"><div class="src-cb on" id="cb-sky_ar">✓</div><span class="src-name">📺 سكاي عربية</span></div>
+        <div class="src-row" onclick="toggleSrc('mbc',this)"><div class="src-cb on" id="cb-mbc">✓</div><span class="src-name">📺 MBC نيوز</span></div>
+        <div class="src-row" onclick="toggleSrc('asharq',this)"><div class="src-cb on" id="cb-asharq">✓</div><span class="src-name">📰 الشرق الأوسط</span></div>
+        <div class="src-row" onclick="toggleSrc('iran_intl',this)"><div class="src-cb on" id="cb-iran_intl">✓</div><span class="src-name">📺 إيران إنترناشيونال</span></div>
+      </div>
+      <!-- International -->
+      <div class="src-group">
+        <div class="src-group-title" id="sg-intl">الوكالات الدولية</div>
+        <div class="src-row" onclick="toggleSrc('reuters',this)"><div class="src-cb on" id="cb-reuters">✓</div><span class="src-name">📡 Reuters</span></div>
+        <div class="src-row" onclick="toggleSrc('ap',this)"><div class="src-cb on" id="cb-ap">✓</div><span class="src-name">📰 AP News</span></div>
+        <div class="src-row" onclick="toggleSrc('afp',this)"><div class="src-cb on" id="cb-afp">✓</div><span class="src-name">🌍 AFP</span></div>
+        <div class="src-row" onclick="toggleSrc('bbc',this)"><div class="src-cb on" id="cb-bbc">✓</div><span class="src-name">🌐 BBC</span></div>
+        <div class="src-row" onclick="toggleSrc('cnn',this)"><div class="src-cb on" id="cb-cnn">✓</div><span class="src-name">📺 CNN</span></div>
+        <div class="src-row" onclick="toggleSrc('france24',this)"><div class="src-cb on" id="cb-france24">✓</div><span class="src-name">📺 France 24</span></div>
+        <div class="src-row" onclick="toggleSrc('dw',this)"><div class="src-cb on" id="cb-dw">✓</div><span class="src-name">📺 DW عربية</span></div>
+        <div class="src-row" onclick="toggleSrc('haaretz',this)"><div class="src-cb on" id="cb-haaretz">✓</div><span class="src-name">📰 Haaretz</span></div>
+      </div>
+      <!-- Social/OSINT -->
+      <div class="src-group">
+        <div class="src-group-title" id="sg-social">وسائل التواصل / OSINT</div>
+        <div class="src-row" onclick="toggleSrc('twitter',this)"><div class="src-cb on" id="cb-twitter">✓</div><span class="src-name">𝕏 Twitter / X</span></div>
+        <div class="src-row" onclick="toggleSrc('telegram',this)"><div class="src-cb on" id="cb-telegram">✓</div><span class="src-name">✈ Telegram</span></div>
+        <div class="src-row" onclick="toggleSrc('facebook',this)"><div class="src-cb on" id="cb-facebook">✓</div><span class="src-name">f Facebook</span></div>
+      </div>
+    </div>
+
+    <!-- FEED -->
+    <div id="feedList"></div>
+  </div>
+
+  <!-- CENTER: MAP -->
+  <div id="mapwrap">
+    <div id="map"></div>
+
+    <!-- Layer Controls -->
+    <div id="layerCtrl">
+      <div class="lc-title" id="lc-title-lbl">طبقات الخريطة</div>
+      <div class="lc-row" onclick="toggleLayer('military')">
+        <div class="lc-toggle on" id="lt-military"></div>
+        <div class="lc-icon">⚔️</div>
+        <div class="lc-label" id="ll-military">مواقع عسكرية</div>
+        <div class="lc-count" id="lc-military">0</div>
+      </div>
+      <div class="lc-row" onclick="toggleLayer('airports')">
+        <div class="lc-toggle on" id="lt-airports"></div>
+        <div class="lc-icon">✈️</div>
+        <div class="lc-label" id="ll-airports">المطارات</div>
+        <div class="lc-count" id="lc-airports">0</div>
+      </div>
+      <div class="lc-row" onclick="toggleLayer('aircraft')">
+        <div class="lc-toggle on" id="lt-aircraft"></div>
+        <div class="lc-icon">🛩️</div>
+        <div class="lc-label" id="ll-aircraft">الطائرات</div>
+        <div class="lc-count" id="lc-aircraft">0</div>
+      </div>
+      <div class="lc-row" onclick="toggleLayer('ships')">
+        <div class="lc-toggle on" id="lt-ships"></div>
+        <div class="lc-icon">🚢</div>
+        <div class="lc-label" id="ll-ships">السفن</div>
+        <div class="lc-count" id="lc-ships">0</div>
+      </div>
+      <div class="lc-row" onclick="toggleLayer('missiles')">
+        <div class="lc-toggle on" id="lt-missiles"></div>
+        <div class="lc-icon">🚀</div>
+        <div class="lc-label" id="ll-missiles">صواريخ / قذائف</div>
+        <div class="lc-count" id="lc-missiles">0</div>
+      </div>
+      <div class="lc-row" onclick="toggleLayer('news')">
+        <div class="lc-toggle on" id="lt-news"></div>
+        <div class="lc-icon">📰</div>
+        <div class="lc-label" id="ll-news">أحداث إخبارية</div>
+        <div class="lc-count" id="lc-news">0</div>
+      </div>
+      <div class="lc-row" onclick="toggleLayer('roads')">
+        <div class="lc-toggle on" id="lt-roads"></div>
+        <div class="lc-icon">🛣️</div>
+        <div class="lc-label" id="ll-roads">خطوط إمداد</div>
+        <div class="lc-count" id="lc-roads">0</div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div id="mapInfo">
+      <div class="mi-row"><div class="mi-dot" style="background:#ff3c3c;box-shadow:0 0 6px #ff3c3c88"></div><span class="mi-lbl" id="ml1">عاجل / صراع</span></div>
+      <div class="mi-row"><div class="mi-dot" style="background:#ff9800"></div><span class="mi-lbl" id="ml2">عسكري</span></div>
+      <div class="mi-row"><div class="mi-dot" style="background:#22b8d0"></div><span class="mi-lbl" id="ml3">مطارات</span></div>
+      <div class="mi-row"><div class="mi-dot" style="background:#3a7eff"></div><span class="mi-lbl" id="ml4">طائرات</span></div>
+      <div class="mi-row"><div class="mi-dot" style="background:#22cc70"></div><span class="mi-lbl" id="ml5">سفن</span></div>
+      <div class="mi-row"><div class="mi-dot" style="background:#ff6a00;animation:missile-move 1.5s infinite"></div><span class="mi-lbl" id="ml6">صواريخ</span></div>
+      <div class="mi-row"><div class="mi-dot" style="background:#e8b84b"></div><span class="mi-lbl" id="ml7">سياسة / دبلوماسية</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: SOCIAL -->
+  <div id="right">
+    <div class="tabs">
+      <div class="tab on" onclick="showTab('twitter',this)">𝕏</div>
+      <div class="tab" onclick="showTab('telegram',this)">✈</div>
+      <div class="tab" onclick="showTab('arabic',this)">عربي</div>
+      <div class="tab" onclick="showTab('facebook',this)">f</div>
+    </div>
+    <div id="socialFeed"></div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusbar">
+  <div class="sb-i"><span class="sb-l" id="sb-src-lbl">المصادر</span><span class="sb-v gold" id="sSrc">19</span></div>
+  <div class="sb-i"><span class="sb-l" id="sb-map-lbl">على الخريطة</span><span class="sb-v cyn" id="sMap">0</span></div>
+  <div class="sb-i"><span class="sb-l" id="sb-brk-lbl">عاجل</span><span class="sb-v red" id="sBreak">0</span></div>
+  <div class="sb-i"><span class="sb-l" id="sb-mil-lbl">عسكري</span><span class="sb-v" style="color:var(--amber)" id="sMil">0</span></div>
+  <div class="sb-i"><span class="sb-l" id="sb-upd-lbl">آخر تحديث</span><span class="sb-v grn" id="sUpd">--:--</span></div>
+  <div class="sb-sp"></div>
+  <div class="sb-br">الجزيرة · العربية · رصد · Reuters · AFP · AP · BBC · Telegram · 𝕏</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// TRANSLATIONS
+// ══════════════════════════════════════════════════════════
+const T = {
+  ar: {
+    loaderMsg:'جارٍ تهيئة خلاصات الاستخبارات...',
+    tickerLbl:'⬥ عاجل',
+    logoSub:'منصة الاستخبارات العالمية',
+    liveTxt:'بث مباشر',
+    langBtn:'EN',
+    searchPlaceholder:'ابحث عن حدث، دولة، كلمة مفتاحية...',
+    'f-all':'الكل','f-breaking':'🔴 عاجل','f-military':'⚔ عسكري',
+    'f-conflict':'💥 صراع','f-politics':'🏛 سياسة','f-economy':'📊 اقتصاد','f-diplomacy':'🕊 دبلوماسية',
+    'lbl-sources':'مصادر الأخبار',
+    'sg-arab':'القنوات العربية','sg-intl':'الوكالات الدولية','sg-social':'وسائل التواصل / OSINT',
+    'lc-title-lbl':'طبقات الخريطة',
+    'll-military':'مواقع عسكرية','ll-airports':'المطارات','ll-aircraft':'الطائرات',
+    'll-ships':'السفن','ll-missiles':'صواريخ / قذائف','ll-news':'أحداث إخبارية','ll-roads':'خطوط إمداد',
+    ml1:'عاجل / صراع',ml2:'عسكري',ml3:'مطارات',ml4:'طائرات',ml5:'سفن',ml6:'صواريخ',ml7:'سياسة / دبلوماسية',
+    'sb-src-lbl':'المصادر','sb-map-lbl':'على الخريطة','sb-brk-lbl':'عاجل','sb-mil-lbl':'عسكري','sb-upd-lbl':'آخر تحديث',
+  },
+  en: {
+    loaderMsg:'INITIALIZING INTELLIGENCE FEEDS...',
+    tickerLbl:'⬥ BREAKING',
+    logoSub:'Global Intelligence Platform',
+    liveTxt:'LIVE',
+    langBtn:'عربي',
+    searchPlaceholder:'Search by event, country, keyword...',
+    'f-all':'ALL','f-breaking':'🔴 BREAKING','f-military':'⚔ MILITARY',
+    'f-conflict':'💥 CONFLICT','f-politics':'🏛 POLITICS','f-economy':'📊 ECONOMY','f-diplomacy':'🕊 DIPLOMACY',
+    'lbl-sources':'News Sources',
+    'sg-arab':'Arab Channels','sg-intl':'International Agencies','sg-social':'Social / OSINT',
+    'lc-title-lbl':'Map Layers',
+    'll-military':'Military Positions','ll-airports':'Airports','ll-aircraft':'Aircraft',
+    'll-ships':'Ships','ll-missiles':'Missiles / Projectiles','ll-news':'News Events','ll-roads':'Supply Routes',
+    ml1:'Breaking / Conflict',ml2:'Military',ml3:'Airports',ml4:'Aircraft',ml5:'Ships',ml6:'Missiles',ml7:'Politics / Diplomacy',
+    'sb-src-lbl':'SOURCES','sb-map-lbl':'MAPPED','sb-brk-lbl':'BREAKING','sb-mil-lbl':'MILITARY','sb-upd-lbl':'UPDATED',
+  }
+};
+
+// ══════════════════════════════════════════════════════════
+// NEWS DATA (bilingual)
+// ══════════════════════════════════════════════════════════
+const NEWS = [
+  // BREAKING
+  {id:1,cat:'breaking',src:'aljazeera',srcLabel:'الجزيرة',srcLabelEn:'Al Jazeera',icon:'📺',age:'2m',
+   title_ar:'قوات إسرائيلية تشن عملية برية واسعة في شمال قطاع غزة — الأمم المتحدة تطالب بوقف فوري لإطلاق النار',
+   title_en:'Israeli forces launch major ground operation in northern Gaza — UN demands immediate ceasefire',
+   tags:['عاجل','صراع','غزة'],tags_en:['BREAKING','CONFLICT','GAZA'],lat:31.4,lng:34.3},
+  {id:2,cat:'breaking',src:'reuters',srcLabel:'رويترز',srcLabelEn:'Reuters',icon:'📡',age:'5m',
+   title_ar:'إيران تُطلق وابلاً من الصواريخ الباليستية نحو الأراضي الإسرائيلية — الدفاع الجوي الإسرائيلي يتصدى لعشرات المقذوفات',
+   title_en:'Iran launches ballistic missile barrage toward Israeli territory — IDF intercepts dozens of projectiles',
+   tags:['عاجل','صراع'],tags_en:['BREAKING','CONFLICT'],lat:32.1,lng:34.8},
+  {id:3,cat:'breaking',src:'alarabiya',srcLabel:'العربية',srcLabelEn:'Al Arabiya',icon:'📺',age:'9m',
+   title_ar:'ضربة حوثية بطائرة مسيّرة تستهدف ناقلة نفط في البحر الأحمر — الطاقم يُجلَى والسفينة تحترق',
+   title_en:'Houthi drone strike targets oil tanker in Red Sea — crew evacuated, vessel ablaze',
+   tags:['عاجل','بحري'],tags_en:['BREAKING','MARITIME'],lat:15.3,lng:42.7},
+  // MILITARY
+  {id:4,cat:'military',src:'rased',srcLabel:'رصد',srcLabelEn:'Rased',icon:'📡',age:'14m',
+   title_ar:'رصد: رتل مدرع إسرائيلي ضخم يتجمع عند معبر إيرز — مؤشرات على توغل وشيك',
+   title_en:'Rased: Large Israeli armored convoy massing at Erez crossing — indicators of imminent incursion',
+   tags:['عسكري','غزة'],tags_en:['MILITARY','GAZA'],lat:31.5,lng:34.5},
+  {id:5,cat:'military',src:'almayadeen',srcLabel:'الميادين',srcLabelEn:'Al Mayadeen',icon:'📺',age:'22m',
+   title_ar:'الميادين: قاعدة عين الأسد في العراق تتعرض لهجوم صاروخي جديد — الجيش الأمريكي يؤكد وقوع إصابات',
+   title_en:'Al Mayadeen: Ain al-Asad base in Iraq hit again — US military confirms casualties',
+   tags:['عسكري','العراق'],tags_en:['MILITARY','IRAQ'],lat:33.4,lng:42.4},
+  {id:6,cat:'military',src:'iran_intl',srcLabel:'إيران إنترناشيونال',srcLabelEn:'Iran International',icon:'📺',age:'28m',
+   title_ar:'إيران إنترناشيونال: الحرس الثوري الإيراني يرفع مستوى التأهب على الحدود السورية — نشر منظومات دفاع جوي',
+   title_en:'Iran International: IRGC raises alert level on Syrian border — air defense systems deployed',
+   tags:['عسكري','إيران'],tags_en:['MILITARY','IRAN'],lat:35.7,lng:51.4},
+  // CONFLICT
+  {id:7,cat:'conflict',src:'afp',srcLabel:'فرانس برس',srcLabelEn:'AFP',icon:'🌍',age:'35m',
+   title_ar:'غارات جوية تستهدف مستودعات أسلحة حزب الله في البقاع — رصد انفجارات ضخمة',
+   title_en:'Airstrikes target Hezbollah weapons depots in Bekaa Valley — massive explosions reported',
+   tags:['صراع','لبنان'],tags_en:['CONFLICT','LEBANON'],lat:33.8,lng:36.0},
+  {id:8,cat:'conflict',src:'bbc',srcLabel:'BBC عربي',srcLabelEn:'BBC Arabic',icon:'🌐',age:'42m',
+   title_ar:'السودان: قوات الدعم السريع تسيطر على مزيد من أحياء الخرطوم — ممرات الإغاثة مغلقة',
+   title_en:'Sudan: RSF seizes more Khartoum districts — aid corridors blocked',
+   tags:['صراع','السودان'],tags_en:['CONFLICT','SUDAN'],lat:15.5,lng:32.5},
+  {id:9,cat:'conflict',src:'sky_ar',srcLabel:'سكاي عربية',srcLabelEn:'Sky Arabia',icon:'📺',age:'50m',
+   title_ar:'تبادل مدفعي عنيف على الحدود اللبنانية الإسرائيلية — سقوط قتلى من الجانبين',
+   title_en:'Heavy artillery exchange on Lebanese-Israeli border — casualties reported on both sides',
+   tags:['صراع','لبنان'],tags_en:['CONFLICT','LEBANON'],lat:33.2,lng:35.6},
+  // POLITICS
+  {id:10,cat:'politics',src:'asharq',srcLabel:'الشرق الأوسط',srcLabelEn:'Asharq Al-Awsat',icon:'📰',age:'1h',
+   title_ar:'ولي العهد السعودي يدعو إلى قمة طارئة للجامعة العربية لبحث التصعيد الإقليمي',
+   title_en:'Saudi Crown Prince calls for emergency Arab League summit on regional escalation',
+   tags:['سياسة','السعودية'],tags_en:['POLITICS','SAUDI'],lat:24.7,lng:46.7},
+  {id:11,cat:'politics',src:'haaretz',srcLabel:'هآرتس',srcLabelEn:'Haaretz',icon:'📰',age:'1h',
+   title_ar:'هآرتس: مجلس الحرب الإسرائيلي منقسم حول صفقة الرهائن — نتنياهو يواجه ضغوطاً غير مسبوقة',
+   title_en:'Haaretz: Israeli war cabinet split over hostage deal — Netanyahu faces unprecedented pressure',
+   tags:['سياسة','إسرائيل'],tags_en:['POLITICS','ISRAEL'],lat:31.8,lng:35.2},
+  {id:12,cat:'politics',src:'cnn',srcLabel:'CNN',srcLabelEn:'CNN',icon:'📺',age:'2h',
+   title_ar:'وزير الخارجية الأمريكي يصل تل أبيب للمحادثات — البيت الأبيض يدرس فرض عقوبات',
+   title_en:'US Secretary of State arrives in Tel Aviv for talks — White House weighs sanctions',
+   tags:['سياسة','دبلوماسية'],tags_en:['POLITICS','DIPLOMACY'],lat:32.1,lng:34.8},
+  // DIPLOMACY
+  {id:13,cat:'diplomacy',src:'france24',srcLabel:'فرانس 24',srcLabelEn:'France 24',icon:'📺',age:'2h',
+   title_ar:'وسطاء قطريون: تقدم ملموس في محادثات التهدئة بين حماس وإسرائيل في القاهرة',
+   title_en:'Qatari mediators: Tangible progress in Hamas-Israel de-escalation talks in Cairo',
+   tags:['دبلوماسية','قطر'],tags_en:['DIPLOMACY','QATAR'],lat:25.3,lng:51.5},
+  {id:14,cat:'diplomacy',src:'ap',srcLabel:'أسوشيتد برس',srcLabelEn:'AP News',icon:'📰',age:'3h',
+   title_ar:'الإمارات ومصر توقعان إطار استثماري بعشرة مليارات دولار',
+   title_en:'UAE and Egypt sign $10B investment framework on food security and infrastructure',
+   tags:['دبلوماسية','الإمارات'],tags_en:['DIPLOMACY','UAE'],lat:23.4,lng:53.8},
+  // ECONOMY
+  {id:15,cat:'economy',src:'mbc',srcLabel:'MBC نيوز',srcLabelEn:'MBC News',icon:'📺',age:'2h',
+   title_ar:'أرامكو السعودية تسجل أرباحاً قياسية — النفط فوق 95 دولاراً في ظل مخاوف المنطقة',
+   title_en:'Saudi Aramco posts record profits — oil above $95 on regional fears',
+   tags:['اقتصاد','الطاقة'],tags_en:['ECONOMY','ENERGY'],lat:26.3,lng:50.2},
+  {id:16,cat:'economy',src:'reuters',srcLabel:'رويترز',srcLabelEn:'Reuters',icon:'📡',age:'3h',
+   title_ar:'ارتفاع حاد في مؤشرات المخاطر البحرية بالخليج العربي — شركات الشحن تحيد عن مسار هرمز',
+   title_en:'Gulf maritime risk indicators spike — shipping companies divert from Hormuz route',
+   tags:['اقتصاد','بحري'],tags_en:['ECONOMY','MARITIME'],lat:26.6,lng:56.3},
+];
+
+// ══════════════════════════════════════════════════════════
+// MAP DATA — MILITARY, AIRPORTS, AIRCRAFT, SHIPS, MISSILES
+// ══════════════════════════════════════════════════════════
+const MILITARY = [
+  {lat:32.1,lng:34.9,name_ar:'قاعدة تل نوف الجوية',name_en:'Tel Nof Air Base',flag:'🇮🇱',country:'Israel'},
+  {lat:31.6,lng:34.9,name_ar:'قاعدة نيتساريم',name_en:'Netzarim Base',flag:'🇮🇱',country:'Israel'},
+  {lat:33.4,lng:42.4,name_ar:'قاعدة عين الأسد',name_en:'Ain al-Asad Air Base',flag:'🇺🇸',country:'USA/Iraq'},
+  {lat:36.4,lng:37.1,name_ar:'قاعدة إنجرليك',name_en:'Incirlik Air Base',flag:'🇹🇷',country:'Turkey/NATO'},
+  {lat:35.7,lng:51.4,name_ar:'قاعدة الثامن شهيد',name_en:'8th Shahid Base',flag:'🇮🇷',country:'Iran'},
+  {lat:24.1,lng:45.1,name_ar:'قاعدة الأمير سلطان',name_en:'Prince Sultan Air Base',flag:'🇸🇦',country:'Saudi Arabia'},
+  {lat:25.2,lng:55.4,name_ar:'قاعدة الظفرة',name_en:'Al Dhafra Air Base',flag:'🇦🇪',country:'UAE/USA'},
+  {lat:26.2,lng:50.6,name_ar:'قاعدة الشيخ عيسى',name_en:'Sheikh Isa Air Base',flag:'🇧🇭',country:'Bahrain/USA'},
+  {lat:29.6,lng:47.4,name_ar:'قاعدة علي السالم',name_en:'Ali Al Salem Air Base',flag:'🇰🇼',country:'Kuwait/USA'},
+  {lat:15.5,lng:44.2,name_ar:'قاعدة حوثية — صنعاء',name_en:'Houthi Command — Sanaa',flag:'🇾🇪',country:'Yemen'},
+  {lat:33.6,lng:35.9,name_ar:'مواقع حزب الله — البقاع',name_en:'Hezbollah Positions — Bekaa',flag:'🇱🇧',country:'Lebanon'},
+];
+
+const AIRPORTS = [
+  {lat:32.0,lng:34.9,name_ar:'مطار بن غوريون',name_en:'Ben Gurion Airport',iata:'TLV',country:'🇮🇱'},
+  {lat:33.8,lng:35.5,name_ar:'مطار رفيق الحريري',name_en:'Beirut–Rafic Hariri Airport',iata:'BEY',country:'🇱🇧'},
+  {lat:30.1,lng:31.4,name_ar:'مطار القاهرة الدولي',name_en:'Cairo International Airport',iata:'CAI',country:'🇪🇬'},
+  {lat:24.9,lng:46.7,name_ar:'مطار الملك خالد',name_en:'King Khalid International',iata:'RUH',country:'🇸🇦'},
+  {lat:25.2,lng:55.4,name_ar:'مطار دبي الدولي',name_en:'Dubai International Airport',iata:'DXB',country:'🇦🇪'},
+  {lat:25.3,lng:51.6,name_ar:'مطار حمد الدولي',name_en:'Hamad International Airport',iata:'DOH',country:'🇶🇦'},
+  {lat:35.4,lng:51.2,name_ar:'مطار الإمام الخميني',name_en:'Imam Khomeini Airport',iata:'IKA',country:'🇮🇷'},
+  {lat:36.5,lng:36.9,name_ar:'مطار اللاذقية',name_en:'Bassel Al-Assad Airport',iata:'LTK',country:'🇸🇾'},
+  {lat:33.3,lng:44.2,name_ar:'مطار بغداد الدولي',name_en:'Baghdad International Airport',iata:'BGW',country:'🇮🇶'},
+  {lat:26.3,lng:50.6,name_ar:'مطار البحرين الدولي',name_en:'Bahrain International Airport',iata:'BAH',country:'🇧🇭'},
+  {lat:15.5,lng:32.6,name_ar:'مطار الخرطوم',name_en:'Khartoum Airport',iata:'KRT',country:'🇸🇩'},
+  {lat:31.7,lng:35.2,name_ar:'مطار القدس المقترح',name_en:'Atarot Airport (inactive)',iata:'—',country:'🇮🇱'},
+];
+
+const AIRCRAFT = [
+  {lat:32.3,lng:34.5,name_ar:'F-35I طائرة هجومية',name_en:'F-35I Strike Aircraft',type:'fighter',heading:220,speed:'950 km/h',alt:'35,000 ft',id:'IAF-01'},
+  {lat:32.6,lng:35.8,name_ar:'طائرة استطلاع B-52',name_en:'Recon Aircraft',type:'recon',heading:180,speed:'800 km/h',alt:'42,000 ft',id:'USAF-R3'},
+  {lat:31.8,lng:35.5,name_ar:'مروحية AH-64 أباتشي',name_en:'AH-64 Apache',type:'heli',heading:150,speed:'290 km/h',alt:'2,000 ft',id:'IAF-H7'},
+  {lat:33.2,lng:35.1,name_ar:'طائرة F-16 تعترضية',name_en:'F-16 Intercept',type:'fighter',heading:90,speed:'1100 km/h',alt:'28,000 ft',id:'IAF-22'},
+  {lat:26.1,lng:50.2,name_ar:'طائرة EA-18G حرب إلكترونية',name_en:'EA-18G Electronic Warfare',type:'ew',heading:315,speed:'880 km/h',alt:'32,000 ft',id:'USN-EW1'},
+  {lat:34.8,lng:38.5,name_ar:'طائرة استطلاع روسية',name_en:'Russian Recon Tu-214R',type:'recon',heading:270,speed:'750 km/h',alt:'38,000 ft',id:'RU-MIL4'},
+  {lat:29.5,lng:44.0,name_ar:'طائرة مسيّرة MQ-9',name_en:'MQ-9 Reaper Drone',type:'drone',heading:200,speed:'400 km/h',alt:'15,000 ft',id:'USAF-D2'},
+  {lat:15.8,lng:43.1,name_ar:'طائرة مسيّرة حوثية',name_en:'Houthi UAV',type:'hostile',heading:340,speed:'250 km/h',alt:'8,000 ft',id:'HTH-D1'},
+];
+
+const SHIPS = [
+  {lat:29.5,lng:32.5,name_ar:'حاملة طائرات USS Eisenhower',name_en:'USS Eisenhower (CVN-69)',type:'carrier',country:'🇺🇸',heading:150,speed:'22 kn'},
+  {lat:26.5,lng:57.0,name_ar:'مدمرة USS Mason',name_en:'USS Mason (DDG-87)',type:'destroyer',country:'🇺🇸',heading:200,speed:'18 kn'},
+  {lat:24.0,lng:59.8,name_ar:'مجموعة ضاربة أمريكية',name_en:'USS Theodore Roosevelt CSG',type:'carrier',country:'🇺🇸',heading:270,speed:'24 kn'},
+  {lat:15.2,lng:42.3,name_ar:'زورق حوثي مسلح',name_en:'Houthi Armed Vessel',type:'hostile',country:'🇾🇪',heading:180,speed:'25 kn'},
+  {lat:27.0,lng:55.5,name_ar:'فرقاطة HMS Diamond',name_en:'HMS Diamond (D34)',type:'frigate',country:'🇬🇧',heading:300,speed:'20 kn'},
+  {lat:31.5,lng:32.5,name_ar:'سفينة تجارية محتجزة',name_en:'Detained Cargo Vessel',type:'cargo',country:'🚢',heading:0,speed:'0 kn'},
+  {lat:23.5,lng:60.0,name_ar:'غواصة أمريكية (تقديرات)',name_en:'USS submarine (est.)',type:'sub',country:'🇺🇸',heading:90,speed:'?'},
+  {lat:28.5,lng:50.5,name_ar:'طراد إيراني — الخليج',name_en:'IRIN Frigate — Gulf',type:'frigate',country:'🇮🇷',heading:45,speed:'16 kn'},
+];
+
+const MISSILES = [
+  {lat:32.2,lng:35.1,name_ar:'اعتراض صاروخي — حيفا',name_en:'Missile Intercept — Haifa',type:'intercept',status_ar:'تم الاعتراض',status_en:'Intercepted'},
+  {lat:31.9,lng:35.0,name_ar:'تأثير صاروخي — جنوب إسرائيل',name_en:'Missile Impact — South Israel',type:'impact',status_ar:'تأثير مؤكد',status_en:'Confirmed Impact'},
+  {lat:33.5,lng:35.7,name_ar:'قصف صاروخي — ضاحية',name_en:'Rocket Barrage — Dahiya',type:'rocket',status_ar:'جارٍ',status_en:'Ongoing'},
+  {lat:15.4,lng:42.8,name_ar:'إطلاق صاروخ باليستي',name_en:'Ballistic Missile Launch',type:'launch',status_ar:'تتبع نشط',status_en:'Active Tracking'},
+  {lat:29.9,lng:47.7,name_ar:'رشقات كاتيوشا — الكويت',name_en:'Katyusha Rockets — Kuwait',type:'rocket',status_ar:'تحقيق جارٍ',status_en:'Under Investigation'},
+];
+
+const ROADS = [
+  [[31.5,34.5],[31.7,34.8],[31.9,35.1]],    // Gaza - Israel supply
+  [[33.3,44.4],[34.0,43.0],[34.8,38.5]],     // Iraq - Syria corridor
+  [[24.7,46.7],[27.0,49.0],[25.3,51.5]],     // Riyadh - Doha route
+];
+
+// Social posts
+const SOCIAL = {
+  twitter:[
+    {ava:'📡',name:'Reuters ME',handle:'@ReutersME',col:'#ff8c00',t:'3m',body_ar:'🔴 عاجل: وزير الخارجية الإيراني يؤكد "الرد المتناسب" جارٍ. التصريح يُبث على التلفزيون الرسمي.',body_en:'🔴 BREAKING: Iranian FM confirms "proportionate response" underway. Statement broadcast on state TV.',l:'9.2K',r:'4.1K',v:'210K'},
+    {ava:'📺',name:'Al Jazeera',handle:'@AJEnglish',col:'#ffd700',t:'8m',body_ar:'مراسلنا في غزة يرصد غارات متواصلة في الأحياء الشمالية. المستشفيات تجاوزت طاقتها الاستيعابية. الأطباء يطالبون بوقود طارئ.',body_en:'Our correspondent in Gaza City reports continuous strikes in northern districts. Hospitals overwhelmed. Doctors calling for emergency fuel.',l:'18K',r:'12K',v:'540K'},
+    {ava:'🌐',name:'BBC Arabic',handle:'@BBCArabic',col:'#bb0000',t:'15m',body_ar:'المملكة العربية السعودية تطلب عقد جلسة طارئة لمجلس الأمن. ولي العهد على خط مع واشنطن ولندن وباريس.',body_en:'Saudi Arabia requests emergency UNSC session. Crown Prince in direct contact with Washington, London, Paris.',l:'6.7K',r:'2.3K',v:'98K'},
+    {ava:'💹',name:'Bloomberg',handle:'@markets',col:'#22b8d0',t:'22m',body_ar:'النفط يرتفع 6.4% بسبب هجمات البحر الأحمر. خام برنت فوق 95 دولاراً. شركات الشحن تحيد عن المسار.',body_en:'Oil spikes 6.4% on Red Sea attacks. Brent above $95. Shipping companies rerouting around MENA.',l:'4.4K',r:'1.8K',v:'76K'},
+    {ava:'📰',name:'Haaretz',handle:'@Haaretz',col:'#3388ff',t:'34m',body_ar:'تحليل: الانقسام السياسي داخل الكابينت بات واضحاً. ثلاثة وزراء يرفضون توقيع المرسوم الطارئ.',body_en:'ANALYSIS: Political fracture in war cabinet now undeniable. Three ministers refuse emergency decree.',l:'7.1K',r:'3.2K',v:'144K'},
+  ],
+  telegram:[
+    {ava:'✈',name:'OSINT Defender',handle:'@OSINTdefender',col:'#29b6f6',t:'4m',body_ar:'🔴 صور الأقمار الاصطناعية تؤكد نمط تدمير واسع بالقرب من الطريق الساحلي. التقييم: ذخائر دقيقة ثقيلة.',body_en:'🔴 Satellite imagery confirms wide destruction pattern near coastal highway. Assessment: heavy precision munitions.',l:'14K',r:'',v:'310K'},
+    {ava:'✈',name:'Intel Slava',handle:'@intelslava',col:'#29b6f6',t:'11m',body_ar:'⚡️ عاجل: تقارير غير مؤكدة عن ضربة تطال مركز قيادة حوثي في صنعاء. انفجارات ثانوية متعددة.',body_en:'⚡️ URGENT: Unconfirmed — Houthi command center in Sanaa reportedly struck. Multiple secondaries.',l:'22K',r:'',v:'480K'},
+    {ava:'✈',name:'WarMapper MENA',handle:'@warmapper',col:'#29b6f6',t:'28m',body_ar:'📍 تحديث الخريطة: تأكيد حركات الخط الأمامي عبر مقاطع موقعية. تحولات ميدانية هامة في الـ36 ساعة الماضية.',body_en:'📍 MAP UPDATE: Frontline movements confirmed via geolocated footage. Significant changes in past 36hrs.',l:'8.8K',r:'',v:'189K'},
+    {ava:'✈',name:'Gulf Intel',handle:'@gulfintel',col:'#29b6f6',t:'45m',body_ar:'تحذير مالي: صناديق ثروة سيادية خليجية تنفذ أوامر بيع كبيرة في الأسواق الأوروبية. نمط مألوف قبيل التصعيد.',body_en:'FINANCIAL ALERT: Gulf sovereign wealth funds executing large European equity sell orders. Pre-conflict capital repatriation pattern.',l:'9.4K',r:'',v:'201K'},
+  ],
+  arabic:[
+    {ava:'📺',name:'قناة الجزيرة',handle:'@AlJazeera',col:'#ffd700',t:'5m',body_ar:'🔴 عاجل: وفد قطري يغادر القاهرة بعد مباحثات مضنية. مصادر: تقدم في الملف الإنساني دون الاتفاق النهائي.',body_en:'🔴 Qatari delegation leaves Cairo after intense talks. Sources: progress on humanitarian file.',l:'31K',r:'',v:'620K'},
+    {ava:'📺',name:'العربية',handle:'@AlArabiya',col:'#cc2200',t:'14m',body_ar:'اجتماع طارئ لوزراء خارجية دول الخليج في الرياض مساء اليوم — التصعيد الإقليمي على رأس جدول الأعمال.',body_en:'Emergency Gulf foreign ministers meeting in Riyadh tonight — regional escalation top of agenda.',l:'12K',r:'',v:'278K'},
+    {ava:'📡',name:'رصد',handle:'@RasedNet',col:'#e8b84b',t:'21m',body_ar:'رصد: مسيّرات انتحارية تحلق فوق محيط القدس — تفعيل أنظمة الإنذار المبكر الإسرائيلية.',body_en:'Rased: Suicide drones over Jerusalem vicinity — Israeli early warning systems activated.',l:'8.2K',r:'',v:'177K'},
+    {ava:'📺',name:'الميادين',handle:'@AlMayadeen',col:'#4a9944',t:'35m',body_ar:'الميادين: المقاومة الإسلامية في العراق تتبنى استهداف قاعدة أمريكية للمرة الثانية هذا الأسبوع.',body_en:'Al Mayadeen: Islamic Resistance in Iraq claims second attack on US base this week.',l:'15K',r:'',v:'340K'},
+    {ava:'📺',name:'إيران إنترناشيونال',handle:'@IranIntl_Ar',col:'#e03030',t:'1h',body_ar:'مصادر: الحرس الثوري يحشد وحدات إضافية على الحدود السورية — لا تأكيد رسمي حتى الساعة.',body_en:'Sources: IRGC massing additional units on Syrian border — no official confirmation yet.',l:'19K',r:'',v:'412K'},
+  ],
+  facebook:[
+    {ava:'f',name:'BBC News Arabic',handle:'BBC News عربي',col:'#4267B2',t:'10m',body_ar:'🔴 عاجل: زلزال قوي يضرب السواحل — تحذيرات من موجات تسونامي في المناطق المجاورة. شاركوا المعلومة لتحذير ذويكم.',body_en:'🔴 BREAKING: Major earthquake strikes coast — tsunami warnings issued for surrounding areas.',l:'24K',r:'Shares 18K',v:'450K'},
+    {ava:'f',name:'Al Jazeera',handle:'الجزيرة',col:'#ffd700',t:'25m',body_ar:'تقرير مباشر من الميدان: الوضع الإنساني يتدهور بسرعة. 2.3 مليون نازح. منظمات إغاثة تطالب بتدخل دولي فوري.',body_en:'Live from the ground: Humanitarian situation deteriorating rapidly. 2.3M displaced. Aid orgs demand immediate intervention.',l:'31K',r:'Shares 22K',v:'780K'},
+    {ava:'f',name:'France 24',handle:'France 24 عربي',col:'#003189',t:'1h',body_ar:'وزير خارجية فرنسا يحث على "تهدئة فورية" ويعلن عن مبادرة دبلوماسية أوروبية مشتركة.',body_en:'French FM urges "immediate de-escalation" — announces joint European diplomatic initiative.',l:'8K',r:'Shares 3K',v:'112K'},
+  ]
+};
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let currentLang = 'ar';
+let map, layerGroups = {};
+let activeFilter = 'all';
+let activeSources = new Set(['aljazeera','alarabiya','rased','almayadeen','sky_ar','mbc','asharq','iran_intl','reuters','ap','afp','bbc','cnn','france24','dw','haaretz','twitter','telegram','facebook']);
+let layerState = {military:true,airports:true,aircraft:true,ships:true,missiles:true,news:true,roads:true};
+
+// ══════════════════════════════════════════════════════════
+// LANGUAGE
+// ══════════════════════════════════════════════════════════
+function toggleLang() {
+  currentLang = currentLang === 'ar' ? 'en' : 'ar';
+  const body = document.body;
+  const html = document.getElementById('htmlRoot');
+  if (currentLang === 'en') {
+    body.classList.replace('ar','en');
+    html.setAttribute('dir','ltr');
+    html.setAttribute('lang','en');
+  } else {
+    body.classList.replace('en','ar');
+    html.setAttribute('dir','rtl');
+    html.setAttribute('lang','ar');
+  }
+  applyTranslations();
+  renderFeed();
+  renderSocial(document.querySelector('.tab.on').getAttribute('data-tab') || 'twitter');
+  buildTicker();
+}
+
+function applyTranslations() {
+  const t = T[currentLang];
+  Object.keys(t).forEach(k => {
+    const el = document.getElementById(k);
+    if (el) el.textContent = t[k];
+  });
+  document.getElementById('searchInput').placeholder = t.searchPlaceholder;
+  document.getElementById('tickerLbl').textContent = t.tickerLbl;
+}
+
+// ══════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const ld = document.getElementById('loader');
+    ld.style.opacity = '0';
+    setTimeout(() => { ld.style.display='none'; boot(); }, 600);
+  }, 2600);
+});
+
+function boot() {
+  startClock();
+  buildTicker();
+  initMap();
+  renderFeed();
+  renderSocial('twitter');
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const tabs=['twitter','telegram','arabic','facebook'];
+    t.setAttribute('data-tab',tabs[i]);
+  });
+  applyTranslations();
+  updateStats();
+}
+
+// ══════════════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════════════
+function startClock() {
+  const D=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  function tick(){
+    const n=new Date();
+    document.getElementById('clk').textContent=[n.getUTCHours(),n.getUTCMinutes(),n.getUTCSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+    document.getElementById('clkD').textContent=`${D[n.getUTCDay()]} ${n.getUTCDate()} ${M[n.getUTCMonth()]} ${n.getUTCFullYear()} UTC`;
+    document.getElementById('sUpd').textContent=[n.getUTCHours(),n.getUTCMinutes()].map(x=>String(x).padStart(2,'0')).join(':');
+  }
+  tick(); setInterval(tick,1000);
+}
+
+// ══════════════════════════════════════════════════════════
+// TICKER
+// ══════════════════════════════════════════════════════════
+function buildTicker(){
+  const items=NEWS.filter(n=>n.cat==='breaking'||n.cat==='military').slice(0,8);
+  const html=items.map(n=>{
+    const src=currentLang==='ar'?n.srcLabel:n.srcLabelEn;
+    const title=currentLang==='ar'?n.title_ar:n.title_en;
+    return `<span class="ticker-item">${src}: ${title}</span>`;
+  }).join('');
+  document.getElementById('tickerInner').innerHTML=html+html+html;
+}
+
+// ══════════════════════════════════════════════════════════
+// MAP
+// ══════════════════════════════════════════════════════════
+function initMap(){
+  map=L.map('map',{zoomControl:true,attributionControl:false}).setView([26,42],4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19}).addTo(map);
+
+  // init layer groups
+  ['military','airports','aircraft','ships','missiles','news','roads'].forEach(k=>{
+    layerGroups[k]=L.layerGroup().addTo(map);
+  });
+
+  plotMilitary(); plotAirports(); plotAircraft(); plotShips(); plotMissiles(); plotNews(); plotRoads();
+  updateLayerCounts();
+}
+
+function mkIcon(emoji,color,size=18,pulse=false){
+  const ring=pulse?`<div style="position:absolute;inset:-6px;border-radius:50%;border:1.5px solid ${color};animation:ring-p 1.8s ease-out infinite;"></div>`:'';
+  return L.divIcon({
+    className:'',
+    html:`<div style="position:relative;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;background:${color}22;border:1px solid ${color}88;border-radius:50%;box-shadow:0 0 12px ${color}55;font-size:${size*.6}px;">${ring}${emoji}</div>`,
+    iconSize:[size,size],iconAnchor:[size/2,size/2]
+  });
+}
+function mkDirIcon(emoji,heading,color){
+  return L.divIcon({
+    className:'',
+    html:`<div style="transform:rotate(${heading}deg);font-size:16px;filter:drop-shadow(0 0 4px ${color});">${emoji}</div>`,
+    iconSize:[20,20],iconAnchor:[10,10]
+  });
+}
+
+function plotMilitary(){
+  layerGroups.military.clearLayers();
+  MILITARY.forEach(m=>{
+    const nm=currentLang==='ar'?m.name_ar:m.name_en;
+    L.marker([m.lat,m.lng],{icon:mkIcon('⚔',`#ff9800`,20,true)})
+     .addTo(layerGroups.military)
+     .bindPopup(`<div class="pu-src">⚔ ${m.flag} ${currentLang==='ar'?'موقع عسكري':'MILITARY BASE'}</div><div class="pu-body">${nm}</div><div class="pu-meta">${m.country}</div>`);
+  });
+  document.getElementById('lc-military').textContent=MILITARY.length;
+}
+
+function plotAirports(){
+  layerGroups.airports.clearLayers();
+  AIRPORTS.forEach(a=>{
+    const nm=currentLang==='ar'?a.name_ar:a.name_en;
+    L.marker([a.lat,a.lng],{icon:mkIcon('✈',`#22b8d0`,18)})
+     .addTo(layerGroups.airports)
+     .bindPopup(`<div class="pu-src">✈ ${a.country} ${currentLang==='ar'?'مطار':'AIRPORT'} · ${a.iata}</div><div class="pu-body">${nm}</div>`);
+  });
+  document.getElementById('lc-airports').textContent=AIRPORTS.length;
+}
+
+function plotAircraft(){
+  layerGroups.aircraft.clearLayers();
+  const colors={fighter:'#3a7eff',recon:'#9966ff',heli:'#22cc70',ew:'#ff9800',drone:'#22b8d0',hostile:'#ff3c3c'};
+  AIRCRAFT.forEach(a=>{
+    const nm=currentLang==='ar'?a.name_ar:a.name_en;
+    const col=colors[a.type]||'#fff';
+    const emoji=a.type==='hostile'?'🚁':a.type==='heli'?'🚁':a.type==='drone'?'🛸':'✈';
+    L.marker([a.lat,a.lng],{icon:mkDirIcon(emoji,a.heading,col)})
+     .addTo(layerGroups.aircraft)
+     .bindPopup(`<div class="pu-src">✈ ${currentLang==='ar'?'طائرة':'AIRCRAFT'} · ${a.id}</div><div class="pu-body">${nm}</div><div class="pu-meta">${currentLang==='ar'?'السرعة':'Speed'}: ${a.speed} · ${currentLang==='ar'?'الارتفاع':'Alt'}: ${a.alt} · ${currentLang==='ar'?'الاتجاه':'HDG'}: ${a.heading}°</div>`);
+  });
+  document.getElementById('lc-aircraft').textContent=AIRCRAFT.length;
+}
+
+function plotShips(){
+  layerGroups.ships.clearLayers();
+  const colors={carrier:'#3a7eff',destroyer:'#22b8d0',frigate:'#9966ff',hostile:'#ff3c3c',cargo:'#e8b84b',sub:'#666'};
+  SHIPS.forEach(s=>{
+    const nm=currentLang==='ar'?s.name_ar:s.name_en;
+    const col=colors[s.type]||'#22cc70';
+    L.marker([s.lat,s.lng],{icon:mkIcon('🚢',col,20,s.type==='hostile')})
+     .addTo(layerGroups.ships)
+     .bindPopup(`<div class="pu-src">🚢 ${s.country} ${(currentLang==='ar'?'سفينة':'VESSEL')}</div><div class="pu-body">${nm}</div><div class="pu-meta">${currentLang==='ar'?'الاتجاه':'HDG'}: ${s.heading}° · ${currentLang==='ar'?'السرعة':'Speed'}: ${s.speed}</div>`);
+  });
+  document.getElementById('lc-ships').textContent=SHIPS.length;
+}
+
+function plotMissiles(){
+  layerGroups.missiles.clearLayers();
+  const cols={intercept:'#22cc70',impact:'#ff3c3c',rocket:'#ff9800',launch:'#ff3c3c'};
+  MISSILES.forEach(m=>{
+    const nm=currentLang==='ar'?m.name_ar:m.name_en;
+    const st=currentLang==='ar'?m.status_ar:m.status_en;
+    const col=cols[m.type]||'#ff6a00';
+    L.marker([m.lat,m.lng],{icon:mkIcon('🚀',col,22,true)})
+     .addTo(layerGroups.missiles)
+     .bindPopup(`<div class="pu-src">🚀 ${currentLang==='ar'?'صاروخ / قذيفة':'MISSILE / PROJECTILE'}</div><div class="pu-body">${nm}</div><div class="pu-meta">${currentLang==='ar'?'الحالة':'Status'}: ${st}</div>`);
+  });
+  document.getElementById('lc-missiles').textContent=MISSILES.length;
+}
+
+function plotNews(){
+  layerGroups.news.clearLayers();
+  const visible=NEWS.filter(n=>activeSources.has(n.src));
+  const cols={breaking:'#ff3c3c',conflict:'#ff9800',politics:'#e8b84b',economy:'#22b8d0',diplomacy:'#9966ff',military:'#ff3c3c',social:'#22cc70'};
+  visible.forEach(n=>{
+    const title=currentLang==='ar'?n.title_ar:n.title_en;
+    const src=currentLang==='ar'?n.srcLabel:n.srcLabelEn;
+    const col=cols[n.cat]||'#888';
+    L.circleMarker([n.lat,n.lng],{radius:6,fillColor:col,color:col,fillOpacity:.85,weight:1.5})
+     .addTo(layerGroups.news)
+     .bindPopup(`<div class="pu-src">${n.icon} ${src.toUpperCase()} · ${n.age}</div><div class="pu-body">${title}</div><div class="pu-meta">${(currentLang==='ar'?n.tags:n.tags_en).join(' · ')}</div>`)
+     .on('click',()=>flyTo(n.lat,n.lng));
+  });
+  document.getElementById('lc-news').textContent=visible.length;
+}
+
+function plotRoads(){
+  layerGroups.roads.clearLayers();
+  ROADS.forEach(pts=>{
+    L.polyline(pts,{color:'#e8b84b44',weight:2,dashArray:'6,6'}).addTo(layerGroups.roads);
+  });
+  document.getElementById('lc-roads').textContent=ROADS.length;
+}
+
+function updateLayerCounts(){
+  const total=MILITARY.length+AIRPORTS.length+AIRCRAFT.length+SHIPS.length+MISSILES.length+NEWS.length;
+  document.getElementById('sMap').textContent=total;
+}
+
+// ══════════════════════════════════════════════════════════
+// LAYER TOGGLE
+// ══════════════════════════════════════════════════════════
+function toggleLayer(key){
+  layerState[key]=!layerState[key];
+  const tog=document.getElementById(`lt-${key}`);
+  tog.classList.toggle('on',layerState[key]);
+  if(layerState[key]){ map.addLayer(layerGroups[key]); }
+  else { map.removeLayer(layerGroups[key]); }
+}
+
+// ══════════════════════════════════════════════════════════
+// SOURCE TOGGLE
+// ══════════════════════════════════════════════════════════
+function toggleSrc(src,row){
+  const cb=document.getElementById(`cb-${src}`);
+  if(activeSources.has(src)){
+    activeSources.delete(src);
+    cb.classList.remove('on'); cb.textContent='';
+  } else {
+    activeSources.add(src);
+    cb.classList.add('on'); cb.textContent='✓';
+  }
+  renderFeed(); plotNews(); updateStats();
+}
+
+// ══════════════════════════════════════════════════════════
+// FEED
+// ══════════════════════════════════════════════════════════
+function renderFeed(){
+  const q=document.getElementById('searchInput').value.toLowerCase().trim();
+  let d=NEWS.filter(n=>activeSources.has(n.src));
+  if(activeFilter!=='all') d=d.filter(n=>n.cat===activeFilter);
+  if(q) d=d.filter(n=>(n.title_ar+n.title_en+n.srcLabel+n.srcLabelEn).toLowerCase().includes(q));
+  document.getElementById('feedCnt').textContent=d.length;
+  document.getElementById('feedList').innerHTML=d.map(n=>{
+    const src=currentLang==='ar'?n.srcLabel:n.srcLabelEn;
+    const title=currentLang==='ar'?n.title_ar:n.title_en;
+    const tags=currentLang==='ar'?n.tags:n.tags_en;
+    return `<div class="card ${n.cat}" onclick="flyTo(${n.lat},${n.lng})">
+      <div class="c-head"><span class="c-ico">${n.icon}</span><span class="c-src">${src}</span><span class="c-age">${n.age}</span></div>
+      <div class="c-body">${title}</div>
+      <div class="c-tags">${tags.map(t=>`<span class="tag ${t==='عاجل'||t==='BREAKING'||t==='صراع'||t==='CONFLICT'?'tag-r':'tag-g'}">${t}</span>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function flyTo(lat,lng){ map.flyTo([lat,lng],7,{duration:1.5}); }
+function doSearch(){ renderFeed(); }
+
+function setFilter(cat,el){
+  activeFilter=cat;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on','on-r'));
+  el.classList.add(cat==='breaking'?'on-r':'on');
+  renderFeed();
+}
+
+// ══════════════════════════════════════════════════════════
+// SOCIAL
+// ══════════════════════════════════════════════════════════
+function renderSocial(tab){
+  const posts=SOCIAL[tab]||[];
+  document.getElementById('socialFeed').innerHTML=posts.map(p=>{
+    const body=currentLang==='ar'?p.body_ar:p.body_en;
+    return `<div class="post">
+      <div class="post-top">
+        <div class="ava" style="background:${p.col}22;color:${p.col}">${p.ava}</div>
+        <div class="p-who"><div class="p-name">${p.name}</div><div class="p-handle">${p.handle}</div></div>
+        <div class="p-t">${p.t}</div>
+      </div>
+      <div class="p-txt">${body}</div>
+      <div class="p-stats"><span>♥ ${p.l}</span>${p.r?`<span>↩ ${p.r}</span>`:''}<span>👁 ${p.v}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function showTab(tab,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderSocial(tab);
+}
+
+// ══════════════════════════════════════════════════════════
+// STATS
+// ══════════════════════════════════════════════════════════
+function updateStats(){
+  document.getElementById('sSrc').textContent=activeSources.size;
+  const total=MILITARY.length+AIRPORTS.length+AIRCRAFT.length+SHIPS.length+MISSILES.length+NEWS.length;
+  document.getElementById('sMap').textContent=total;
+  document.getElementById('sBreak').textContent=NEWS.filter(n=>n.cat==='breaking'&&activeSources.has(n.src)).length;
+  document.getElementById('sMil').textContent=MILITARY.length+AIRCRAFT.length+MISSILES.length;
+}
+
+// ══════════════════════════════════════════════════════════
+// LIVE PUSH simulation
+// ══════════════════════════════════════════════════════════
+const LIVE_QUEUE=[
+  {id:99,cat:'breaking',src:'reuters',srcLabel:'رويترز',srcLabelEn:'Reuters',icon:'📡',age:'آنياً',
+   title_ar:'إغلاق مطار بيروت أمام الرحلات المدنية إثر تحذيرات صاروخية',
+   title_en:'Beirut airport closed to civilian flights following rocket alerts',
+   tags:['عاجل','لبنان'],tags_en:['BREAKING','LEBANON'],lat:33.8,lng:35.5},
+];
+let liveIdx=0;
+setInterval(()=>{
+  if(liveIdx<LIVE_QUEUE.length){
+    NEWS.unshift(LIVE_QUEUE[liveIdx++]);
+    renderFeed(); plotNews(); buildTicker(); updateStats();
+  }
+},18000);
+
+// ══════════════════════════════════════════════════════════
+// STYLE: ring-p keyframe
+// ══════════════════════════════════════════════════════════
+const style=document.createElement('style');
+style.textContent=`@keyframes ring-p{0%{transform:scale(1);opacity:.7}100%{transform:scale(3);opacity:0}}`;
+document.head.appendChild(style);
+</script>
+</body>
+</html>
